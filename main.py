@@ -3,19 +3,11 @@ import requests
 from telebot import types
 import json
 from datetime import datetime
-from threading import Thread
-from flask import Flask
 import os
-
-app = Flask('')
-
-@app.route('/')
-def home():
-    return "🔥 Flame Bot is Online!"
 
 # --- CONFIGURATION ---
 TOKEN = "8494305163:AAFrXuG50xpdsYS0Jz-lFPk_tEjb3y5lpV0"
-bot = telebot.TeleBot(TOKEN, threaded=True)
+bot = telebot.TeleBot(TOKEN)
 
 ADMIN_ID = 7212602902
 ALLOWED_USERS = {7212602902} 
@@ -121,11 +113,6 @@ def handle_calls(call):
         payload = {"data": json.dumps({"money": 50000000, "coins": 45000, "localID": session['localid'], "Timestamp": ts})}
         requests.post(url, headers=headers, json=payload)
         bot.answer_callback_query(call.id, "💰 Money Added!")
-    elif call.data == "set_extreme":
-        url = "https://us-central1-cp-multiplayer.cloudfunctions.net/SyncData"
-        payload = {"data": json.dumps({"w16_engine": True, "smoke_unlocked": True, "all_horns": True, "localID": session['localid'], "Timestamp": ts})}
-        requests.post(url, headers=headers, json=payload)
-        bot.answer_callback_query(call.id, "🚀 W16 Unlocked!")
     elif call.data == "edit_email":
         bot.send_message(cid, "📧 പുതിയ ഇമെയിൽ നൽകുക:")
         bot.register_next_step_handler(call.message, update_email)
@@ -149,11 +136,7 @@ def update_pass(message):
                        json={"idToken": session['token'], "password": new_pass, "returnSecureToken": True})
     bot.send_message(cid, "✅ Password Updated!" if res.status_code==200 else "❌ Error!")
 
-# --- RUNNING ---
-def run_bot():
-    bot.infinity_polling(none_stop=True)
-
+# --- BOT RUN ---
 if __name__ == "__main__":
-    Thread(target=run_bot).start()
-    port = int(os.environ.get("PORT", 8080))
-    app.run(host='0.0.0.0', port=port)
+    print("Bot is starting...")
+    bot.infinity_polling()
