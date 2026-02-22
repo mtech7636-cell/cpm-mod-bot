@@ -12,11 +12,11 @@ app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "🔥 Flame Bot is Online!"
+    return "🔥 Flame Bot is Live!"
 
 # --- CONFIGURATION ---
 TOKEN = "8494305163:AAFrXuG50xpdsYS0Jz-lFPk_tEjb3y5lpV0"
-bot = telebot.TeleBot(TOKEN, threaded=False) # Render-ൽ threaded=False ആണ് കൂടുതൽ സ്റ്റേബിൾ
+bot = telebot.TeleBot(TOKEN, threaded=False)
 
 ADMIN_ID = 7212602902
 ALLOWED_USERS = {7212602902} 
@@ -48,19 +48,19 @@ def start(message):
     
     markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
     markup.add(types.KeyboardButton('CPM1'), types.KeyboardButton('CPM2'))
-    bot.send_message(message.chat.id, "🔥 **FLAME V22.6.1 FINAL**\nSelect Version:", reply_markup=markup)
+    bot.send_message(message.chat.id, "🔥 **FLAME V22.6.1 FINAL**", reply_markup=markup)
 
-# --- LOGIN & ACTIONS (FULL LOGIC) ---
+# --- LOGIN & ACTIONS (FULL) ---
 @bot.message_handler(func=lambda m: m.text in ['CPM1', 'CPM2'])
 def login_init(message):
     if message.from_user.id not in ALLOWED_USERS: return
     user_sessions[message.chat.id] = {'v': message.text}
-    bot.send_message(message.chat.id, "📧 Enter Email:", reply_markup=types.ReplyKeyboardRemove())
+    bot.send_message(message.chat.id, "📧 Email നൽകുക:", reply_markup=types.ReplyKeyboardRemove())
     bot.register_next_step_handler(message, get_pass)
 
 def get_pass(message):
     user_sessions[message.chat.id]['email'] = message.text.strip()
-    bot.send_message(message.chat.id, "🔑 Enter Password:")
+    bot.send_message(message.chat.id, "🔑 Password നൽകുക:")
     bot.register_next_step_handler(message, process_login)
 
 def process_login(message):
@@ -75,14 +75,13 @@ def process_login(message):
             markup = types.InlineKeyboardMarkup(row_width=1)
             markup.add(
                 types.InlineKeyboardButton("💰 50M CASH", callback_data="set_money"),
-                types.InlineKeyboardButton("👑 KING RANK", callback_data="set_rank"),
-                types.InlineKeyboardButton("🚀 EXTREME MODS", callback_data="set_extreme")
+                types.InlineKeyboardButton("👑 KING RANK", callback_data="set_rank")
             )
             bot.send_message(cid, f"✅ **LOGIN SUCCESS!**", reply_markup=markup)
         else:
             bot.send_message(cid, "❌ Login Failed!")
     except:
-        bot.send_message(cid, "❌ Server Error!")
+        bot.send_message(cid, "❌ Error!")
 
 @bot.callback_query_handler(func=lambda call: True)
 def handle_calls(call):
@@ -97,23 +96,15 @@ def handle_calls(call):
         payload = {"data": json.dumps({"money": 50000000, "coins": 45000, "localID": session['localid'], "Timestamp": ts})}
         requests.post(url, headers=headers, json=payload)
         bot.answer_callback_query(call.id, "💰 Money Added!")
-    elif call.data == "set_rank":
-        url = "https://us-central1-cp-multiplayer.cloudfunctions.net/SetUserRating4" if session['v']=="CPM1" else "https://us-central1-cpm-2-7cea1.cloudfunctions.net/SetUserRating17_AppI"
-        payload = {"data": json.dumps({"RatingData": {"time": 0.5, "race_win": 9999, "cars": 150}, "Timestamp": ts})}
-        requests.post(url, headers=headers, json=payload)
-        bot.answer_callback_query(call.id, "👑 Rank Applied!")
 
-# --- BOT POLLING FUNCTION ---
+# --- THE FIX ---
 def run_bot():
-    bot.infinity_polling(timeout=10, long_polling_timeout=5)
+    bot.infinity_polling(none_stop=True)
 
-# --- MAIN BLOCK FOR RENDER ---
 if __name__ == "__main__":
-    # ബോട്ടിനെ ബാക്ക്ഗ്രൗണ്ടിൽ വിടുക
     t = Thread(target=run_bot)
     t.daemon = True
     t.start()
-    
-    # ഫ്ലാസ്കിനെ മെയിൻ ആയി റൺ ചെയ്യുക
+    # Port must be bound to 0.0.0.0
     port = int(os.environ.get("PORT", 8080))
     app.run(host='0.0.0.0', port=port)
