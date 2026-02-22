@@ -1,66 +1,88 @@
 import telebot
 import requests
-from telebot import types
 import json
 from datetime import datetime
 from threading import Thread
 from flask import Flask
 import os
 
+# --- UPTIME SERVER ---
 app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "🔥 Flame Mega Tool is Online!"
+    return "🔥 Flame Mega Bot is Live & Stable!"
 
-# --- CONFIGURATION ---
+# --- BOT CONFIGURATION ---
 TOKEN = "8494305163:AAFrXuG50xpdsYS0Jz-lFPk_tEjb3y5lpV0"
 bot = telebot.TeleBot(TOKEN, threaded=False)
 
 ADMIN_ID = 7212602902
 ALLOWED_USERS = {7212602902} 
 
-API_KEYS = {"CPM1": "AIzaSyBW1ZbMiUeDZHYUO2bY8Bfnf5rRgrQGPTM", 
-            "CPM2": "AIzaSyCQDz9rgjgmvmFkvVfmvr2-7fT4tfrzRRQ"}
+API_KEYS = {
+    "CPM1": "AIzaSyBW1ZbMiUeDZHYUO2bY8Bfnf5rRgrQGPTM",
+    "CPM2": "AIzaSyCQDz9rgjgmvmFkvVfmvr2-7fT4tfrzRRQ"
+}
 
 user_sessions = {}
 
-# --- HELPER: MASTER SYNC ---
-def master_sync(cid, payload_data):
+# --- MASTER SYNC LOGIC ---
+def sync_data(cid, data_to_sync):
     session = user_sessions.get(cid)
-    headers = {"Authorization": f"Bearer {session['token']}", "Content-Type": "application/json"}
-    ts = int(datetime.now().timestamp()*1000)
+    headers = {
+        "Authorization": f"Bearer {session['token']}",
+        "Content-Type": "application/json",
+        "User-Agent": "Dalvik/2.1.0 (Linux; U; Android 12;)" 
+    }
     
-    # നിങ്ങൾ ചോദിച്ച എല്ലാ ഐറ്റംസും ഉൾപ്പെടുത്തിയ മാസ്റ്റർ ലിസ്റ്റ്
-    full_payload = {
+    ts = int(datetime.now().timestamp() * 1000)
+    data_to_sync.update({
         "localID": session['localid'],
         "Timestamp": ts
-    }
-    full_payload.update(payload_data)
+    })
     
-    url = "https://us-central1-cp-multiplayer.cloudfunctions.net/SyncData"
-    return requests.post(url, headers=headers, json={"data": json.dumps(full_payload)})
+    payload = {"data": json.dumps(data_to_sync)}
+    
+    if session['v'] == "CPM1":
+        url = "https://us-central1-cp-multiplayer.cloudfunctions.net/SyncData"
+    else:
+        url = "https://us-central1-cpm-2-7cea1.cloudfunctions.net/SyncData_AppI"
 
-# --- START & LOGIN (അതേപടി തുടരുന്നു) ---
+    return requests.post(url, headers=headers, json=payload)
+
+# --- START & ADMIN ---
 @bot.message_handler(commands=['start'])
 def start(message):
     uid = message.from_user.id
     if uid not in ALLOWED_USERS:
-        bot.send_message(uid, f"❌ No Access! ID: `{uid}`")
+        bot.send_message(uid, f"⏳ Access ആവശ്യമുണ്ട്. ID: `{uid}`", parse_mode="Markdown")
+        bot.send_message(ADMIN_ID, f"🔔 **New Request:** `{uid}`")
         return
-    markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
+    
+    markup = telebot.types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
     markup.add('CPM1', 'CPM2')
-    bot.send_message(message.chat.id, "🏎️ **CPM MEGA UNLOCKER**\nSelect Version:", reply_markup=markup)
+    bot.send_message(message.chat.id, "🔥 **FLAME MEGA TOOL**\nSelect Version:", reply_markup=markup)
 
+@bot.message_handler(commands=['add'])
+def add_user(message):
+    if message.from_user.id == ADMIN_ID:
+        try:
+            new_id = int(message.text.split()[1])
+            ALLOWED_USERS.add(new_id)
+            bot.reply_to(message, f"✅ User `{new_id}` Added!")
+        except: bot.reply_to(message, "Usage: `/add ID`")
+
+# --- LOGIN FLOW ---
 @bot.message_handler(func=lambda m: m.text in ['CPM1', 'CPM2'])
 def login_init(message):
     user_sessions[message.chat.id] = {'v': message.text}
-    bot.send_message(message.chat.id, "📧 Email?")
+    bot.send_message(message.chat.id, "📧 Enter Game Email:", reply_markup=telebot.types.ReplyKeyboardRemove())
     bot.register_next_step_handler(message, get_pass)
 
 def get_pass(message):
     user_sessions[message.chat.id]['email'] = message.text.strip()
-    bot.send_message(message.chat.id, "🔑 Password?")
+    bot.send_message(message.chat.id, "🔑 Enter Game Password:")
     bot.register_next_step_handler(message, process_login)
 
 def process_login(message):
@@ -68,55 +90,47 @@ def process_login(message):
     session = user_sessions.get(cid)
     url = f"https://www.googleapis.com/identitytoolkit/v3/relyingparty/verifyPassword?key={API_KEYS[session['v']]}"
     res = requests.post(url, json={"email": session['email'], "password": message.text.strip(), "returnSecureToken": True}).json()
+    
     if 'idToken' in res:
         session.update({'token': res['idToken'], 'localid': res['localId']})
-        show_mega_menu(cid)
+        markup = telebot.types.InlineKeyboardMarkup(row_width=1)
+        markup.add(
+            telebot.types.InlineKeyboardButton("🔓 UNLOCK EVERYTHING (ALL)", callback_data="all"),
+            telebot.types.InlineKeyboardButton("💰 50M CASH + COINS", callback_data="money"),
+            telebot.types.InlineKeyboardButton("🚀 W16 + EXTREME MODS", callback_data="mods"),
+            telebot.types.InlineKeyboardButton("🏠 UNLOCK ALL HOUSES", callback_data="houses"),
+            telebot.types.InlineKeyboardButton("🛞 PAID WHEELS", callback_data="wheels")
+        )
+        bot.send_message(cid, "✅ **Login Success!**\nഎല്ലാം അൺലോക്ക് ചെയ്യാൻ താഴെ സെലക്ട് ചെയ്യുക:", reply_markup=markup)
     else: bot.send_message(cid, "❌ Login Failed!")
 
-# --- MEGA MENU ---
-def show_mega_menu(cid):
-    m = types.InlineKeyboardMarkup(row_width=1)
-    m.add(
-        types.InlineKeyboardButton("🔓 UNLOCK EVERYTHING (ALL)", callback_data="unlock_all"),
-        types.InlineKeyboardButton("🚀 W16 + ENGINE FIX", callback_data="unlock_w16"),
-        types.InlineKeyboardButton("🏠 UNLOCK HOUSES", callback_data="unlock_houses"),
-        types.InlineKeyboardButton("🛞 PAID WHEELS", callback_data="unlock_wheels"),
-        types.InlineKeyboardButton("💨 SMOKE & HORNS", callback_data="unlock_misc"),
-        types.InlineKeyboardButton("💰 50M CASH + 50K COINS", callback_data="unlock_money")
-    )
-    bot.send_message(cid, "🔥 **FLAME MEGA MENU**\nഎല്ലാം അൺലോക്ക് ചെയ്യാൻ താഴെ സെലക്ട് ചെയ്യുക:", reply_markup=m)
-
-# --- CALLBACK ACTIONS ---
+# --- CALLBACKS ---
 @bot.callback_query_handler(func=lambda call: True)
 def handle_calls(call):
     cid = call.message.chat.id
-    if call.data == "unlock_all":
-        # ഇതാണ് മാസ്റ്റർ അൺലോക്കർ
-        data = {
-            "w16_engine": 1, "all_horns": 1, "smoke_unlocked": 1, 
-            "all_wheels_unlocked": 1, "houses_unlocked": 1, "engine_damage": 0,
-            "money": 50000000, "coins": 50000
-        }
-        master_sync(cid, data)
-        bot.answer_callback_query(call.id, "✅ EVERYTHING UNLOCKED!")
+    if call.data == "all":
+        data = {"money": 50000000, "coins": 45000, "w16_engine": 1, "all_horns": 1, "smoke_unlocked": 1, "houses_unlocked": 1, "all_wheels_unlocked": 1, "engine_damage": 0}
+        msg = "✅ EVERYTHING UNLOCKED!"
+    elif call.data == "money":
+        data = {"money": 50000000, "coins": 45000}
+        msg = "💰 Money & Coins Added!"
+    elif call.data == "mods":
+        data = {"w16_engine": 1, "all_horns": 1, "smoke_unlocked": 1, "engine_damage": 0}
+        msg = "🚀 Mods Unlocked!"
+    elif call.data == "houses":
+        data = {"houses_unlocked": 1}
+        msg = "🏠 Houses Unlocked!"
+    elif call.data == "wheels":
+        data = {"all_wheels_unlocked": 1}
+        msg = "🛞 Wheels Unlocked!"
+    
+    resp = sync_data(cid, data)
+    if resp.status_code == 200:
+        bot.answer_callback_query(call.id, msg)
+        bot.send_message(cid, f"{msg}\n\n⚠️ **ഗെയിം റീസ്റ്റാർട്ട് ചെയ്യുക, എന്നിട്ട് Settings-ൽ പോയി Sync/Save Online നൽകുക.**")
+    else: bot.send_message(cid, "❌ Server Error!")
 
-    elif call.data == "unlock_w16":
-        master_sync(cid, {"w16_engine": 1, "engine_damage": 0})
-        bot.answer_callback_query(call.id, "🚀 W16 Unlocked!")
-
-    elif call.data == "unlock_wheels":
-        master_sync(cid, {"all_wheels_unlocked": 1})
-        bot.answer_callback_query(call.id, "🛞 Paid Wheels Unlocked!")
-
-    elif call.data == "unlock_houses":
-        master_sync(cid, {"houses_unlocked": 1})
-        bot.answer_callback_query(call.id, "🏠 All Houses Unlocked!")
-
-    elif call.data == "unlock_misc":
-        master_sync(cid, {"all_horns": 1, "smoke_unlocked": 1})
-        bot.answer_callback_query(call.id, "💨 Smoke & Horns Unlocked!")
-
-# --- RUN ---
+# --- STARTUP ---
 if __name__ == "__main__":
     Thread(target=lambda: bot.infinity_polling(none_stop=True)).start()
     port = int(os.environ.get("PORT", 8080))
