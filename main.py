@@ -13,16 +13,11 @@ app = Flask('')
 def home():
     return "🔥 Flame Bot is Online!"
 
-def run_flask():
-    port = int(os.environ.get("PORT", 8080))
-    app.run(host='0.0.0.0', port=port)
-
 # --- CONFIGURATION ---
 TOKEN = "8494305163:AAFrXuG50xpdsYS0Jz-lFPk_tEjb3y5lpV0"
 bot = telebot.TeleBot(TOKEN, threaded=True)
 
 ADMIN_ID = 7212602902
-# മുൻപത്തെ മെമ്പേഴ്‌സിനെ ഒഴിവാക്കി. നിങ്ങൾ ആഡ് ചെയ്യുന്നവർക്ക് മാത്രം ഇനി ആക്സസ് ലഭിക്കും.
 ALLOWED_USERS = {7212602902} 
 
 API_KEYS = {"CPM1": "AIzaSyBW1ZbMiUeDZHYUO2bY8Bfnf5rRgrQGPTM", 
@@ -37,7 +32,7 @@ def add_user(message):
         try:
             target_id = int(message.text.split()[1])
             ALLOWED_USERS.add(target_id)
-            bot.reply_to(message, f"✅ User `{target_id}` added to Flame Bot.")
+            bot.reply_to(message, f"✅ User `{target_id}` added.")
         except:
             bot.reply_to(message, "Usage: `/add [USER_ID]`")
 
@@ -47,7 +42,7 @@ def remove_user(message):
         try:
             target_id = int(message.text.split()[1])
             ALLOWED_USERS.discard(target_id)
-            bot.reply_to(message, f"❌ User `{target_id}` access removed.")
+            bot.reply_to(message, f"❌ User `{target_id}` removed.")
         except:
             bot.reply_to(message, "Usage: `/remove [USER_ID]`")
 
@@ -57,38 +52,25 @@ def list_users(message):
         users_list = "\n".join([f"• `{u}`" for u in ALLOWED_USERS])
         bot.send_message(message.chat.id, f"👥 **Authorized Users:**\n{users_list}", parse_mode="Markdown")
 
-@bot.message_handler(commands=['send'])
-def broadcast(message):
-    if message.from_user.id == ADMIN_ID:
-        msg_text = message.text.replace('/send ', '')
-        if msg_text == '/send': return
-        count = 0
-        for uid in ALLOWED_USERS:
-            try: 
-                bot.send_message(uid, f"📢 **ADMIN MESSAGE:**\n\n{msg_text}")
-                count += 1
-            except: pass
-        bot.reply_to(message, f"✅ Broadcast sent to {count} users.")
-
 # --- START ---
 @bot.message_handler(commands=['start'])
 def start(message):
     uid = message.from_user.id
     if uid not in ALLOWED_USERS:
-        bot.send_message(uid, f"⏳ Access ആവശ്യമുണ്ട്. Admin-നെ ബന്ധപ്പെടുക.\nYour ID: `{uid}`", parse_mode="Markdown")
-        bot.send_message(ADMIN_ID, f"🔔 **New Request:** `{uid}`\nUser: @{message.from_user.username}")
+        bot.send_message(uid, f"⏳ Access ആവശ്യമുണ്ട്. ID: `{uid}`", parse_mode="Markdown")
+        bot.send_message(ADMIN_ID, f"🔔 **New Request:** `{uid}`")
         return
     
     markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
     markup.add(types.KeyboardButton('CPM1'), types.KeyboardButton('CPM2'))
     bot.send_message(message.chat.id, "🔥 **FLAME V22.6.1 FINAL**\nSelect Version:", reply_markup=markup)
 
-# --- LOGIN LOGIC ---
+# --- LOGIN PROCESS ---
 @bot.message_handler(func=lambda m: m.text in ['CPM1', 'CPM2'])
 def login_init(message):
     if message.from_user.id not in ALLOWED_USERS: return
     user_sessions[message.chat.id] = {'v': message.text}
-    bot.send_message(message.chat.id, "📧 Enter Game Email:", reply_markup=types.ReplyKeyboardRemove())
+    bot.send_message(message.chat.id, "📧 Enter Email:", reply_markup=types.ReplyKeyboardRemove())
     bot.register_next_step_handler(message, get_pass)
 
 def get_pass(message):
@@ -107,7 +89,7 @@ def process_login(message):
             session.update({'token': res['idToken'], 'localid': res['localId']})
             markup = types.InlineKeyboardMarkup(row_width=1)
             markup.add(
-                types.InlineKeyboardButton("💰 50M CASH", callback_data="set_money"),
+                types.InlineKeyboardButton("💰 50M CASH + COINS", callback_data="set_money"),
                 types.InlineKeyboardButton("👑 KING RANK", callback_data="set_rank"),
                 types.InlineKeyboardButton("🚀 W16 + EXTREME", callback_data="set_extreme"),
                 types.InlineKeyboardButton("🛠️ FIX ENGINE", callback_data="set_mods"),
@@ -120,6 +102,7 @@ def process_login(message):
     except:
         bot.send_message(cid, "❌ Server Error!")
 
+# --- ACTION CALLBACKS ---
 @bot.callback_query_handler(func=lambda call: True)
 def handle_calls(call):
     cid = call.message.chat.id
@@ -138,6 +121,11 @@ def handle_calls(call):
         payload = {"data": json.dumps({"money": 50000000, "coins": 45000, "localID": session['localid'], "Timestamp": ts})}
         requests.post(url, headers=headers, json=payload)
         bot.answer_callback_query(call.id, "💰 Money Added!")
+    elif call.data == "set_extreme":
+        url = "https://us-central1-cp-multiplayer.cloudfunctions.net/SyncData"
+        payload = {"data": json.dumps({"w16_engine": True, "smoke_unlocked": True, "all_horns": True, "localID": session['localid'], "Timestamp": ts})}
+        requests.post(url, headers=headers, json=payload)
+        bot.answer_callback_query(call.id, "🚀 W16 Unlocked!")
     elif call.data == "edit_email":
         bot.send_message(cid, "📧 പുതിയ ഇമെയിൽ നൽകുക:")
         bot.register_next_step_handler(call.message, update_email)
@@ -161,6 +149,11 @@ def update_pass(message):
                        json={"idToken": session['token'], "password": new_pass, "returnSecureToken": True})
     bot.send_message(cid, "✅ Password Updated!" if res.status_code==200 else "❌ Error!")
 
+# --- RUNNING ---
+def run_bot():
+    bot.infinity_polling(none_stop=True)
+
 if __name__ == "__main__":
-    Thread(target=run_flask).start()
-    bot.infinity_polling()
+    Thread(target=run_bot).start()
+    port = int(os.environ.get("PORT", 8080))
+    app.run(host='0.0.0.0', port=port)
