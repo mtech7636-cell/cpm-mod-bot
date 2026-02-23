@@ -1,107 +1,89 @@
 import telebot
-import requests
-import json
-from datetime import datetime
+from telebot import types
+import os
 from threading import Thread
 from flask import Flask
-import os
 
 app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "🔥 CPM Working Panel v14.0 Active"
+    return "<h1>🤖 CPM ELITE STABLE v6.0: ACTIVE</h1>"
 
-TOKEN = "8494305163:AAFrXuG50xpdsYS0Jz-lFPk_tEjb3y5lpV0"
-bot = telebot.TeleBot(TOKEN, threaded=False)
+# നിങ്ങളുടെ പുതിയ ടോക്കൺ
+TOKEN = "8494305163:AAH6XQAfy91mrmi4e4TO5JtFBE7gTDL0hjY"
+bot = telebot.TeleBot(TOKEN)
+ADMIN_ID = 7212602902 
 
-ADMIN_ID = 7212602902
-ALLOWED_USERS = {7212602902} 
+# ബോട്ട് ഉപയോഗിക്കുന്നവരുടെ ലിസ്റ്റ് സൂക്ഷിക്കാൻ
+users = set()
 
-API_KEYS = {
-    "CPM1": "AIzaSyBW1ZbMiUeDZHYUO2bY8Bfnf5rRgrQGPTM",
-    "CPM2": "AIzaSyCQDz9rgjgmvmFkvVfmvr2-7fT4tfrzRRQ"
-}
-
-user_sessions = {}
-
-# --- WORKING SYNC FUNCTION ---
-def apply_feature(cid, data_payload):
-    sd = user_sessions.get(cid)
-    base = "https://cp-multiplayer-default-rtdb.firebaseio.com" if sd['v'] == "CPM1" else "https://cpm-2-7cea1-default-rtdb.firebaseio.com"
-    
-    # User Profile path for Rank and Email
-    url = f"{base}/users/{sd['localid']}.json?auth={sd['token']}"
-    
-    try:
-        response = requests.patch(url, json=data_payload, timeout=20)
-        return response.status_code == 200
-    except:
-        return False
-
-# --- LOGIN FLOW ---
+# --- 1. START MENU ---
 @bot.message_handler(commands=['start'])
 def start(message):
-    if message.from_user.id not in ALLOWED_USERS: return
-    markup = telebot.types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
-    markup.add('CPM1', 'CPM2')
-    bot.send_message(message.chat.id, "🏎️ **CPM WORKING TOOLS**\nSelect Version:", reply_markup=markup)
-
-@bot.message_handler(func=lambda m: m.text in ['CPM1', 'CPM2'])
-def login_init(message):
-    user_sessions[message.chat.id] = {'v': message.text}
-    bot.send_message(message.chat.id, "📧 Current Email:")
-    bot.register_next_step_handler(message, get_pass)
-
-def get_pass(message):
-    user_sessions[message.chat.id]['email'] = message.text.strip()
-    bot.send_message(message.chat.id, "🔑 Password:")
-    bot.register_next_step_handler(message, process_login)
-
-def process_login(message):
-    cid = message.chat.id
-    sd = user_sessions.get(cid)
-    auth_url = f"https://www.googleapis.com/identitytoolkit/v3/relyingparty/verifyPassword?key={API_KEYS[sd['v']]}"
-    res = requests.post(auth_url, json={"email": sd['email'], "password": message.text.strip(), "returnSecureToken": True}).json()
+    users.add(message.chat.id)
+    markup = types.InlineKeyboardMarkup(row_width=2)
+    btn1 = types.InlineKeyboardButton("🛒 CAR MARKET", callback_data="market")
+    btn2 = types.InlineKeyboardButton("🎨 LIVERY STORE", callback_data="livery")
+    btn3 = types.InlineKeyboardButton("📊 MY PROFILE", callback_data="profile")
+    btn4 = types.InlineKeyboardButton("📢 UPDATES", callback_data="updates")
+    markup.add(btn1, btn2, btn3, btn4)
     
-    if 'idToken' in res:
-        sd.update({'token': res['idToken'], 'localid': res['localId']})
-        m = telebot.types.InlineKeyboardMarkup(row_width=1)
-        m.add(
-            telebot.types.InlineKeyboardButton("👑 UNLOCK KING RANK", callback_data="set_king"),
-            telebot.types.InlineKeyboardButton("📧 CHANGE EMAIL ID", callback_data="change_mail")
-        )
-        bot.send_message(cid, "✅ **Logged In Successfully!**", reply_markup=m)
-    else:
-        bot.send_message(cid, "❌ Login Failed!")
+    welcome = (f"🏎️ **CPM ELITE HELPER v6.0**\n\n"
+               f"ഹലോ {message.from_user.first_name}!\n"
+               f"CPM ഗെയിമിലെ ഏറ്റവും പുതിയ ഡിസൈനുകളും മാർക്കറ്റ് വിവരങ്ങളും ഇവിടെ ലഭിക്കും.")
+    bot.send_message(message.chat.id, welcome, reply_markup=markup, parse_mode="Markdown")
 
+# --- 2. ADMIN BROADCAST (ഫീച്ചർ 4) ---
+@bot.message_handler(commands=['broadcast'])
+def broadcast(message):
+    if message.from_user.id == ADMIN_ID:
+        msg_text = message.text.replace('/broadcast ', '')
+        if msg_text == "/broadcast" or msg_text == "":
+            bot.send_message(ADMIN_ID, "❌ ഉപയോഗിക്കേണ്ട രീതി: `/broadcast നിങ്ങളുടെ മെസ്സേജ്`")
+            return
+        
+        success = 0
+        for user_id in users:
+            try:
+                bot.send_message(user_id, f"📢 **OFFICIAL ANNOUNCEMENT**\n\n{msg_text}")
+                success += 1
+            except: continue
+        bot.send_message(ADMIN_ID, f"✅ {success} പ്ലെയേഴ്സിന് മെസ്സേജ് അയച്ചു.")
+
+# --- CALLBACK RESPONSES ---
 @bot.callback_query_handler(func=lambda call: True)
-def handle_calls(call):
-    cid = call.message.chat.id
+def handle_query(call):
+    uid = call.message.chat.id
     
-    if call.data == "set_king":
-        # King Rank data
-        success = apply_feature(cid, {"rank": 1, "is_king": True})
-        if success:
-            bot.send_message(cid, "🎉 **King Rank Applied!**\nRestart and Sync.")
-        else:
-            bot.send_message(cid, "❌ Error applying rank.")
+    # 🛒 CAR MARKET (ഫീച്ചർ 3)
+    if call.data == "market":
+        market_text = ("🛒 **CPM MARKETPLACE**\n\n"
+                       "നിങ്ങൾക്ക് വണ്ടി വിൽക്കാനുണ്ടോ? എങ്കിൽ വണ്ടിയുടെ ഫോട്ടോയും വിലയും അഡ്മിന് അയക്കുക.\n\n"
+                       "അഡ്മിൻ: @YourUsername")
+        bot.send_message(uid, market_text)
 
-    elif call.data == "change_mail":
-        bot.send_message(cid, "📝 Enter New Email ID:")
-        bot.register_next_step_handler(call.message, do_email_change)
+    # 🎨 LIVERY STORE
+    elif call.data == "livery":
+        livery_text = ("🎨 **EXCLUSIVE LIVERY CODES**\n\n"
+                       "• Police Mustang: `PM-001` \n"
+                       "• Tokyo Drift: `TD-77` \n"
+                       "• Monster Truck: `MT-55` \n\n"
+                       "ഈ കോഡുകൾ ഗെയിമിൽ ഉപയോഗിക്കാം!")
+        bot.send_message(uid, livery_text)
 
-def do_email_change(message):
-    cid = message.chat.id
-    new_email = message.text.strip()
-    # Firebase-ൽ ഇമെയിൽ മാറ്റുന്ന രീതി
-    success = apply_feature(cid, {"email": new_email})
-    if success:
-        bot.send_message(cid, f"✅ **Email changed to:** `{new_email}`\nUse this to login next time.")
-    else:
-        bot.send_message(cid, "❌ Failed to change email.")
+    # 📊 PROFILE
+    elif call.data == "profile":
+        bot.send_message(uid, f"📊 **PLAYER INFO**\n\n👤 Name: {call.from_user.first_name}\n🆔 ID: `{uid}`\n🚀 Rank: Member")
 
-if __name__ == "__main__":
-    Thread(target=lambda: bot.infinity_polling(none_stop=True)).start()
+    # 📢 UPDATES
+    elif call.data == "updates":
+        bot.send_message(uid, "📢 **NEWS & UPDATES**\n\nനിലവിൽ ബോട്ട് വളരെ സ്മൂത്ത് ആയി വർക്ക് ചെയ്യുന്നു. പുതിയ ഡിസൈനുകൾ ഉടൻ തന്നെ സ്റ്റോറിൽ ആഡ് ചെയ്യുന്നതാണ്!")
+
+def run():
     port = int(os.environ.get("PORT", 8080))
     app.run(host='0.0.0.0', port=port)
+
+if __name__ == "__main__":
+    Thread(target=run).start()
+    bot.infinity_polling()
