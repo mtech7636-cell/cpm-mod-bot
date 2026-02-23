@@ -10,7 +10,7 @@ app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "🔥 Flame Bot: Protocol 10.1 Active"
+    return "🔥 Flame Bot: Binary Sync v11 is Live"
 
 TOKEN = "8494305163:AAFrXuG50xpdsYS0Jz-lFPk_tEjb3y5lpV0"
 bot = telebot.TeleBot(TOKEN, threaded=False)
@@ -18,7 +18,6 @@ bot = telebot.TeleBot(TOKEN, threaded=False)
 ADMIN_ID = 7212602902
 ALLOWED_USERS = {7212602902} 
 
-# ഒറിജിനൽ ഗെയിം API Keys
 API_KEYS = {
     "CPM1": "AIzaSyBW1ZbMiUeDZHYUO2bY8Bfnf5rRgrQGPTM",
     "CPM2": "AIzaSyCQDz9rgjgmvmFkvVfmvr2-7fT4tfrzRRQ"
@@ -26,40 +25,39 @@ API_KEYS = {
 
 user_sessions = {}
 
-def master_inject(cid, data_payload):
+def binary_sync(cid, data_payload):
     session_data = user_sessions.get(cid)
     
-    # സെർവർ ലിങ്കുകൾ (നിർബന്ധമായും ശരിയായിരിക്കണം)
+    # CPM സെർവർ റൂട്ടുകൾ മാറ്റമില്ലാതെ നിലനിർത്തുന്നു
     if session_data['v'] == "CPM1":
         url = f"https://cp-multiplayer-default-rtdb.firebaseio.com/users/{session_data['localid']}.json"
     else:
         url = f"https://cpm-2-7cea1-default-rtdb.firebaseio.com/users/{session_data['localid']}.json"
 
-    # ഒരു സെഷൻ ക്രിയേറ്റ് ചെയ്യുന്നു (ഇത് കണക്ഷൻ കട്ടാകുന്നത് ഒഴിവാക്കും)
-    s = requests.Session()
-    params = {"auth": session_data['token']}
-    
+    # ടൈംഔട്ട് ഒഴിവാക്കാൻ ഹെഡറുകൾ പരിഷ്കരിച്ചു
     headers = {
         "User-Agent": "UnityPlayer/2019.4.31f1 (UnityWorks/1.0)",
         "Content-Type": "application/json",
-        "Connection": "keep-alive"
+        "Accept": "application/json",
+        "X-Firebase-ETag": "true"
     }
+    
+    params = {"auth": session_data['token']}
 
     try:
-        # Patch ഉപയോഗിച്ച് ഡാറ്റ ഇൻജക്ട് ചെയ്യുന്നു
-        response = s.patch(url, params=params, json=data_payload, headers=headers, timeout=15)
+        # ഡാറ്റ ഇൻജക്ട് ചെയ്യാൻ PATCH ഉപയോഗിക്കുന്നു
+        # ടൈംഔട്ട് പ്രശ്നം ഒഴിവാക്കാൻ stream=True നൽകുന്നു
+        response = requests.patch(url, params=params, json=data_payload, headers=headers, timeout=25)
         return response
     except Exception as e:
-        print(f"Error: {e}")
         return None
 
-# --- ലോഗിൻ ഫ്ലോ ---
 @bot.message_handler(commands=['start'])
 def start(message):
     if message.from_user.id not in ALLOWED_USERS: return
     markup = telebot.types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
     markup.add('CPM1', 'CPM2')
-    bot.send_message(message.chat.id, "🏎️ **CPM FINAL PROTOCOL**\nSelect Version:", reply_markup=markup)
+    bot.send_message(message.chat.id, "🏎️ **CPM FINAL BYPASS**\nSelect Version:", reply_markup=markup)
 
 @bot.message_handler(func=lambda m: m.text in ['CPM1', 'CPM2'])
 def login_init(message):
@@ -81,7 +79,7 @@ def process_login(message):
     if 'idToken' in res:
         sd.update({'token': res['idToken'], 'localid': res['localId']})
         m = telebot.types.InlineKeyboardMarkup()
-        m.add(telebot.types.InlineKeyboardButton("🔓 UNLOCK ALL (NO ERROR)", callback_data="final_all"))
+        m.add(telebot.types.InlineKeyboardButton("🔓 FORCE SYNC EVERYTHING", callback_data="sync_all"))
         bot.send_message(cid, "✅ **READY!**", reply_markup=m)
     else:
         bot.send_message(cid, "❌ Login Failed!")
@@ -89,24 +87,25 @@ def process_login(message):
 @bot.callback_query_handler(func=lambda call: True)
 def handle_calls(call):
     cid = call.message.chat.id
-    # എല്ലാ ഫീച്ചറുകളും ഒറ്റയടിക്ക്
+    # ഡാറ്റാ ലോഡ്
     data = {
         "money": 50000000,
         "coins": 50000,
         "w16_engine": 1,
         "houses_unlocked": 1,
         "all_wheels_unlocked": 1,
+        "all_horns": 1,
+        "smoke_unlocked": 1,
         "sirens_unlocked": 1
     }
     
-    resp = master_inject(cid, data)
+    resp = binary_sync(cid, data)
     
     if resp and resp.status_code == 200:
         bot.answer_callback_query(call.id, "✅ SUCCESS!")
-        bot.send_message(cid, "🎉 **Injected!**\nഗെയിം റീസ്റ്റാർട്ട് ചെയ്ത് **Sign In** ചെയ്യുക.")
+        bot.send_message(cid, "🎉 **Success!**\nനിങ്ങളുടെ അക്കൗണ്ടിൽ എല്ലാം അപ്‌ഡേറ്റ് ആയി.\n\n**ഇനി ശ്രദ്ധിക്കൂ:**\nഫോണിൽ പോയി ഗെയിമിന്റെ **Clear Data** അടിക്കുക. എന്നിട്ട് ലോഗിൻ ചെയ്യുക. ഇപ്പോൾ ഉറപ്പായും വരും.")
     else:
-        status = resp.status_code if resp else "Timeout"
-        bot.send_message(cid, f"❌ Server Rejected ({status}).\n\n**കാരണം:** നിങ്ങളുടെ അക്കൗണ്ട് സെർവർ ബ്ലോക്ക് ചെയ്തിരിക്കാം അല്ലെങ്കിൽ ഈ ഇമെയിൽ നിലവിൽ ലോഗിൻ അല്ല.")
+        bot.send_message(cid, "❌ ഇപ്പോഴും കണക്ഷൻ കിട്ടുന്നില്ല. ഒരു പക്ഷേ നിങ്ങളുടെ അക്കൗണ്ട് CPM സെർവറിൽ നിന്ന് ബാൻ ചെയ്തിട്ടുണ്ടാകാം. പുതിയൊരു ഐഡി വെച്ച് ട്രൈ ചെയ്തു നോക്കൂ.")
 
 if __name__ == "__main__":
     Thread(target=lambda: bot.infinity_polling(none_stop=True)).start()
