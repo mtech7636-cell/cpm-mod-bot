@@ -5,13 +5,12 @@ from datetime import datetime
 from threading import Thread
 from flask import Flask
 import os
-import random
 
 app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "🔥 Flame Final Proxy: Online"
+    return "🔥 Flame Bot: Ready to Go"
 
 TOKEN = "8494305163:AAFrXuG50xpdsYS0Jz-lFPk_tEjb3y5lpV0"
 bot = telebot.TeleBot(TOKEN, threaded=False)
@@ -26,49 +25,36 @@ API_KEYS = {
 
 user_sessions = {}
 
-def proxy_bypass_sync(cid, data_payload):
+def direct_push(cid, key, value):
     sd = user_sessions.get(cid)
+    base = "https://cp-multiplayer-default-rtdb.firebaseio.com" if sd['v'] == "CPM1" else "https://cpm-2-7cea1-default-rtdb.firebaseio.com"
     
-    # CPM1 & CPM2 Secure Database Endpoints
-    base_url = "https://cp-multiplayer-default-rtdb.firebaseio.com" if sd['v'] == "CPM1" else "https://cpm-2-7cea1-default-rtdb.firebaseio.com"
-    target_url = f"{base_url}/users/{sd['localid']}.json"
-
-    # റാഡം ഡിവൈസ് ഐഡി ഉണ്ടാക്കി സെർവറിനെ പറ്റിക്കുന്നു
-    device_id = "".join(random.choices("0123456789abcdef", k=16))
+    # ഓരോ വാല്യൂവും ഓരോന്നായി പുഷ് ചെയ്യുന്നു
+    url = f"{base}/users/{sd['localid']}/{key}.json?auth={sd['token']}"
     
-    headers = {
-        "User-Agent": f"UnityPlayer/2019.4.31f1 (UnityWorks/1.0; DeviceId:{device_id})",
-        "Content-Type": "application/json",
-        "X-Unity-Version": "2019.4.31f1",
-        "Accept-Encoding": "gzip, deflate",
-        "Connection": "keep-alive"
-    }
-    
-    params = {"auth": sd['token']}
-
     try:
-        # PATCH ഉപയോഗിച്ച് ഡാറ്റ ഇൻജക്ട് ചെയ്യുന്നു
-        response = requests.patch(target_url, params=params, json=data_payload, headers=headers, timeout=30)
-        return response
+        # PUT ഉപയോഗിച്ച് കൃത്യം ആ സ്ഥലത്തേക്ക് ഡാറ്റ എത്തിക്കുന്നു
+        res = requests.put(url, json=value, timeout=15)
+        return res.status_code == 200
     except:
-        return None
+        return False
 
 @bot.message_handler(commands=['start'])
 def start(message):
     if message.from_user.id not in ALLOWED_USERS: return
     markup = telebot.types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
     markup.add('CPM1', 'CPM2')
-    bot.send_message(message.chat.id, "🛑 **FINAL ATTEMPT: PROXY MODE**\nസെർവർ ബ്ലോക്ക് മാറ്റാൻ ശ്രമിക്കുന്നു...", reply_markup=markup)
+    bot.send_message(message.chat.id, "🏎️ **CPM DIRECT TOOL**\nVPN ആവശ്യമില്ല, നേരിട്ട് നോക്കാം:", reply_markup=markup)
 
 @bot.message_handler(func=lambda m: m.text in ['CPM1', 'CPM2'])
 def login_init(message):
     user_sessions[message.chat.id] = {'v': message.text}
-    bot.send_message(message.chat.id, "📧 ഇമെയിൽ നൽകുക:")
+    bot.send_message(message.chat.id, "📧 Email:")
     bot.register_next_step_handler(message, get_pass)
 
 def get_pass(message):
     user_sessions[message.chat.id]['email'] = message.text.strip()
-    bot.send_message(message.chat.id, "🔑 പാസ്‌വേഡ് നൽകുക:")
+    bot.send_message(message.chat.id, "🔑 Password:")
     bot.register_next_step_handler(message, process_login)
 
 def process_login(message):
@@ -80,33 +66,25 @@ def process_login(message):
     if 'idToken' in res:
         sd.update({'token': res['idToken'], 'localid': res['localId']})
         m = telebot.types.InlineKeyboardMarkup()
-        m.add(telebot.types.InlineKeyboardButton("🔓 PROXY UNLOCK (ALL)", callback_data="proxy_all"))
-        bot.send_message(cid, "🛡️ **PROXY CONNECTED!**", reply_markup=m)
+        m.add(telebot.types.InlineKeyboardButton("💰 ADD 50M & 50K", callback_data="add_money"))
+        bot.send_message(cid, "✅ **Logged In!**", reply_markup=m)
     else:
-        bot.send_message(cid, "❌ ലോഗിൻ നടന്നില്ല!")
+        bot.send_message(cid, "❌ Login Error!")
 
 @bot.callback_query_handler(func=lambda call: True)
 def handle_calls(call):
     cid = call.message.chat.id
-    data = {
-        "money": 50000000,
-        "coins": 45000,
-        "w16_engine": 1,
-        "houses_unlocked": 1,
-        "all_wheels_unlocked": 1,
-        "all_horns": 1,
-        "smoke_unlocked": 1,
-        "sirens_unlocked": 1,
-        "engine_damage": 0
-    }
+    bot.answer_callback_query(call.id, "Processing...")
     
-    resp = proxy_bypass_sync(cid, data)
+    # പണവും കോയിനും ഓരോന്നായി മാറ്റുന്നു
+    s1 = direct_push(cid, "money", 50000000)
+    s2 = direct_push(cid, "coins", 50000)
+    s3 = direct_push(cid, "w16_engine", 1)
     
-    if resp and resp.status_code == 200:
-        bot.answer_callback_query(call.id, "✅ PROXY SUCCESS!")
-        bot.send_message(cid, "🎉 **അവസാനം വിജയിച്ചു!**\nസെർവറിലേക്ക് ഡാറ്റ കടത്തിവിട്ടു.\n\n**ഇനി ഇത് ചെയ്യുക:**\n1. ഫോണിലെ ഗെയിം ഡാറ്റ ക്ലിയർ ചെയ്യുക.\n2. ലോഗിൻ ചെയ്യുക.\n3. Cloud Download ചെയ്യുക.")
+    if s1 or s2:
+        bot.send_message(cid, "✅ **Success!**\nസെർവറിൽ മാറ്റം വരുത്തി. ഇനി ഗെയിം **Clear Data** ചെയ്ത് ലോഗിൻ ചെയ്തു നോക്കൂ.")
     else:
-        bot.send_message(cid, "🛑 **പരാജയപ്പെട്ടു.**\nസെർവർ ഈ മെത്തേഡും ബ്ലോക്ക് ചെയ്തു. നിങ്ങളുടെ അക്കൗണ്ട് അല്ലെങ്കിൽ നിങ്ങളുടെ ലൊക്കേഷൻ (IP) CPM പൂർണ്ണമായും ബാൻ ചെയ്തിരിക്കുകയാണ്.")
+        bot.send_message(cid, "❌ സെർവർ ഇപ്പോഴും ബ്ലോക്ക് ചെയ്യുന്നു. ഇമെയിൽ ലോഗിൻ ഔട്ട് ചെയ്തിട്ടുണ്ടാകാം.")
 
 if __name__ == "__main__":
     Thread(target=lambda: bot.infinity_polling(none_stop=True)).start()
