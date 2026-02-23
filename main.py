@@ -10,7 +10,7 @@ app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "🔥 Flame Bot: Ready to Go"
+    return "🔥 CPM Working Panel v14.0 Active"
 
 TOKEN = "8494305163:AAFrXuG50xpdsYS0Jz-lFPk_tEjb3y5lpV0"
 bot = telebot.TeleBot(TOKEN, threaded=False)
@@ -25,31 +25,32 @@ API_KEYS = {
 
 user_sessions = {}
 
-def direct_push(cid, key, value):
+# --- WORKING SYNC FUNCTION ---
+def apply_feature(cid, data_payload):
     sd = user_sessions.get(cid)
     base = "https://cp-multiplayer-default-rtdb.firebaseio.com" if sd['v'] == "CPM1" else "https://cpm-2-7cea1-default-rtdb.firebaseio.com"
     
-    # ഓരോ വാല്യൂവും ഓരോന്നായി പുഷ് ചെയ്യുന്നു
-    url = f"{base}/users/{sd['localid']}/{key}.json?auth={sd['token']}"
+    # User Profile path for Rank and Email
+    url = f"{base}/users/{sd['localid']}.json?auth={sd['token']}"
     
     try:
-        # PUT ഉപയോഗിച്ച് കൃത്യം ആ സ്ഥലത്തേക്ക് ഡാറ്റ എത്തിക്കുന്നു
-        res = requests.put(url, json=value, timeout=15)
-        return res.status_code == 200
+        response = requests.patch(url, json=data_payload, timeout=20)
+        return response.status_code == 200
     except:
         return False
 
+# --- LOGIN FLOW ---
 @bot.message_handler(commands=['start'])
 def start(message):
     if message.from_user.id not in ALLOWED_USERS: return
     markup = telebot.types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
     markup.add('CPM1', 'CPM2')
-    bot.send_message(message.chat.id, "🏎️ **CPM DIRECT TOOL**\nVPN ആവശ്യമില്ല, നേരിട്ട് നോക്കാം:", reply_markup=markup)
+    bot.send_message(message.chat.id, "🏎️ **CPM WORKING TOOLS**\nSelect Version:", reply_markup=markup)
 
 @bot.message_handler(func=lambda m: m.text in ['CPM1', 'CPM2'])
 def login_init(message):
     user_sessions[message.chat.id] = {'v': message.text}
-    bot.send_message(message.chat.id, "📧 Email:")
+    bot.send_message(message.chat.id, "📧 Current Email:")
     bot.register_next_step_handler(message, get_pass)
 
 def get_pass(message):
@@ -65,26 +66,40 @@ def process_login(message):
     
     if 'idToken' in res:
         sd.update({'token': res['idToken'], 'localid': res['localId']})
-        m = telebot.types.InlineKeyboardMarkup()
-        m.add(telebot.types.InlineKeyboardButton("💰 ADD 50M & 50K", callback_data="add_money"))
-        bot.send_message(cid, "✅ **Logged In!**", reply_markup=m)
+        m = telebot.types.InlineKeyboardMarkup(row_width=1)
+        m.add(
+            telebot.types.InlineKeyboardButton("👑 UNLOCK KING RANK", callback_data="set_king"),
+            telebot.types.InlineKeyboardButton("📧 CHANGE EMAIL ID", callback_data="change_mail")
+        )
+        bot.send_message(cid, "✅ **Logged In Successfully!**", reply_markup=m)
     else:
-        bot.send_message(cid, "❌ Login Error!")
+        bot.send_message(cid, "❌ Login Failed!")
 
 @bot.callback_query_handler(func=lambda call: True)
 def handle_calls(call):
     cid = call.message.chat.id
-    bot.answer_callback_query(call.id, "Processing...")
     
-    # പണവും കോയിനും ഓരോന്നായി മാറ്റുന്നു
-    s1 = direct_push(cid, "money", 50000000)
-    s2 = direct_push(cid, "coins", 50000)
-    s3 = direct_push(cid, "w16_engine", 1)
-    
-    if s1 or s2:
-        bot.send_message(cid, "✅ **Success!**\nസെർവറിൽ മാറ്റം വരുത്തി. ഇനി ഗെയിം **Clear Data** ചെയ്ത് ലോഗിൻ ചെയ്തു നോക്കൂ.")
+    if call.data == "set_king":
+        # King Rank data
+        success = apply_feature(cid, {"rank": 1, "is_king": True})
+        if success:
+            bot.send_message(cid, "🎉 **King Rank Applied!**\nRestart and Sync.")
+        else:
+            bot.send_message(cid, "❌ Error applying rank.")
+
+    elif call.data == "change_mail":
+        bot.send_message(cid, "📝 Enter New Email ID:")
+        bot.register_next_step_handler(call.message, do_email_change)
+
+def do_email_change(message):
+    cid = message.chat.id
+    new_email = message.text.strip()
+    # Firebase-ൽ ഇമെയിൽ മാറ്റുന്ന രീതി
+    success = apply_feature(cid, {"email": new_email})
+    if success:
+        bot.send_message(cid, f"✅ **Email changed to:** `{new_email}`\nUse this to login next time.")
     else:
-        bot.send_message(cid, "❌ സെർവർ ഇപ്പോഴും ബ്ലോക്ക് ചെയ്യുന്നു. ഇമെയിൽ ലോഗിൻ ഔട്ട് ചെയ്തിട്ടുണ്ടാകാം.")
+        bot.send_message(cid, "❌ Failed to change email.")
 
 if __name__ == "__main__":
     Thread(target=lambda: bot.infinity_polling(none_stop=True)).start()
