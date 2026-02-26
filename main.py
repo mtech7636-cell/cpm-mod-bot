@@ -12,154 +12,123 @@ app = Flask('')
 
 @app.route('/')
 def home():
-    return "🔥 CPM ULTIMATE BOT is Online & Running!"
+    return "🔥 CPM API BOT IS RUNNING!"
 
 def run_flask():
     port = int(os.environ.get("PORT", 8080))
     app.run(host='0.0.0.0', port=port)
 
-# --- CONFIGURATION ---
-# നിന്റെ ടോക്കൺ താഴെ ആഡ് ചെയ്തിട്ടുണ്ട്
+# --- MUNAR TOOL API CLASS ---
+BASE_URL = "https://cpmsalebot.ru/api"
+
+class MUNAR_TOOL:
+    def __init__(self, access_key: str) -> None:
+        self.auth_token = None
+        self.access_key = access_key
+
+    def _request(self, endpoint: str, extra_data: dict = None) -> dict:
+        data = {"account_auth": self.auth_token} if self.auth_token else {}
+        if extra_data:
+            data.update(extra_data)
+        params = {"key": self.access_key}
+        try:
+            response = requests.post(f"{BASE_URL}/{endpoint}", params=params, data=data, timeout=15)
+            return response.json()
+        except:
+            return {"ok": False, "error": "API_ERROR"}
+
+    def login(self, email: str, password: str) -> int:
+        payload = {"account_email": email, "account_password": password}
+        params = {"key": self.access_key}
+        try:
+            response = requests.post(f"{BASE_URL}/account_login", params=params, data=payload, timeout=15)
+            res = response.json()
+            if res.get("ok"):
+                self.auth_token = res.get("auth")
+            return res.get("error")
+        except:
+            return 500
+
+# --- BOT CONFIGURATION ---
 TOKEN = "8314787817:AAHpZnchNnDOaLARhaVU6eNLGbyDuyjz-n0"
-bot = telebot.TeleBot(TOKEN, threaded=True, num_threads=20)
+bot = telebot.TeleBot(TOKEN)
 
 ADMIN_ID = 7212602902
 ALLOWED_USERS = {7212602902}
-
-API_KEYS = {
-    "CPM1": "AIzaSyBW1ZbMiUeDZHYUO2bY8Bfnf5rRgrQGPTM",
-    "CPM2": "AIzaSyCQDz9rgjgmvmFkvVfmvr2-7fT4tfrzRRQ"
-}
-
 user_sessions = {}
 
-# --- UTILS (Rainbow Name Generator) ---
-def get_rainbow_name(name):
-    modified_name = ""
-    for char in name:
-        color = "%06x" % random.randint(0, 0xFFFFFF)
-        modified_name += f"[{color}]{char}"
-    return modified_name
-
-# --- START & APPROVAL ---
+# --- START ---
 @bot.message_handler(commands=['start'])
 def start(message):
     uid = message.from_user.id
     if uid not in ALLOWED_USERS:
-        markup = types.InlineKeyboardMarkup().add(types.InlineKeyboardButton("✅ APPROVE USER", callback_data=f"approve_{uid}"))
-        bot.send_message(ADMIN_ID, f"🔔 **NEW ACCESS REQUEST:** `{uid}`", reply_markup=markup)
-        return bot.reply_to(message, "⏳ അഡ്മിൻ അപ്രൂവലിനായി കാത്തിരിക്കൂ.")
+        return bot.reply_to(message, "❌ Access Denied. Contact Admin.")
     
-    markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
-    markup.add(types.KeyboardButton('CPM1'), types.KeyboardButton('CPM2'))
-    bot.send_message(message.chat.id, "🔥 **CPM ULTIMATE TOOLS**\nവേർഷൻ തിരഞ്ഞെടുക്കുക:", reply_markup=markup)
+    bot.send_message(message.chat.id, "📧 CPM Email നൽകുക:")
+    bot.register_next_step_handler(message, get_email)
 
-# --- LOGIN PROCESS ---
-@bot.message_handler(func=lambda m: m.text in ['CPM1', 'CPM2'])
-def login_init(message):
-    user_sessions[message.chat.id] = {'v': message.text}
-    bot.send_message(message.chat.id, f"✅ {message.text} Selected.\n📧 Email നൽകുക:", reply_markup=types.ReplyKeyboardRemove())
-    bot.register_next_step_handler(message, get_pass)
+def get_email(message):
+    user_sessions[message.chat.id] = {'email': message.text.strip()}
+    bot.send_message(message.chat.id, "🔑 CPM Password നൽകുക:")
+    bot.register_next_step_handler(message, get_password)
 
-def get_pass(message):
-    user_sessions[message.chat.id]['email'] = message.text.strip()
-    bot.send_message(message.chat.id, "🔑 Password നൽകുക:")
-    bot.register_next_step_handler(message, process_login)
+def get_password(message):
+    user_sessions[message.chat.id]['password'] = message.text.strip()
+    bot.send_message(message.chat.id, "🔑 Access Key നൽകുക (cpmsalebot key):")
+    bot.register_next_step_handler(message, final_login)
 
-def process_login(message):
+def final_login(message):
     cid = message.chat.id
-    pwd = message.text.strip()
+    access_key = message.text.strip()
     session = user_sessions.get(cid)
-    bot.send_message(cid, "⏳ ലോഗിൻ ചെയ്യുന്നു...")
+    
+    bot.send_message(cid, "⏳ Logging into Game Server...")
+    
+    # Initialize Munar Tool
+    cpm = MUNAR_TOOL(access_key)
+    error_code = cpm.login(session['email'], session['password'])
+    
+    if error_code == 0: # 0 means success
+        session['cpm'] = cpm
+        markup = types.InlineKeyboardMarkup(row_width=2)
+        markup.add(
+            types.InlineKeyboardButton("💰 ADD 50M MONEY", callback_data="add_money"),
+            types.InlineKeyboardButton("🪙 ADD 45K COINS", callback_data="add_coins"),
+            types.InlineKeyboardButton("🔓 UNLOCK ALL CARS", callback_data="unlock_all"),
+            types.InlineKeyboardButton("🏠 UNLOCK HOUSES", callback_data="unlock_house"),
+            types.InlineKeyboardButton("🚫 DEL FRIENDS", callback_data="del_friends")
+        )
+        bot.send_message(cid, f"✅ Login Success!\nEmail: {session['email']}", reply_markup=markup)
+    else:
+        bot.send_message(cid, f"❌ Login Failed! Error Code: {error_code}")
 
-    def login_task():
-        try:
-            res = requests.post(f"https://www.googleapis.com/identitytoolkit/v3/relyingparty/verifyPassword?key={API_KEYS[session['v']]}", 
-                               json={"email": session['email'], "password": pwd, "returnSecureToken": True}, timeout=15).json()
-            if 'idToken' in res:
-                user_sessions[cid].update({'token': res['idToken'], 'localid': res['localId'], 'pass': pwd})
-                
-                markup = types.InlineKeyboardMarkup(row_width=2)
-                markup.add(
-                    types.InlineKeyboardButton("👑 KING RANK", callback_data="set_rank"),
-                    types.InlineKeyboardButton("🔓 UNLOCK ALL", callback_data="unlock_cars"),
-                    types.InlineKeyboardButton("💰 50M & 45K", callback_data="set_money"),
-                    types.InlineKeyboardButton("🌈 RAINBOW NAME", callback_data="rainbow_prompt"),
-                    types.InlineKeyboardButton("🏠 HOUSE 3", callback_data="set_house"),
-                    types.InlineKeyboardButton("💨 SMOKE", callback_data="set_smoke"),
-                    types.InlineKeyboardButton("📢 SIRENS", callback_data="set_siren"),
-                    types.InlineKeyboardButton("🚫 DEL FRIENDS", callback_data="del_friends")
-                )
-                bot.send_message(cid, f"✅ **SUCCESS!**\nWelcome: {session['email']}", reply_markup=markup)
-            else:
-                bot.send_message(cid, "❌ Login Failed! Email/Password തെറ്റാണ്.")
-        except:
-            bot.send_message(cid, "❌ സർവർ ബിസിയാണ്.")
-
-    Thread(target=login_task).start()
-
-# --- CALLBACK HANDLERS ---
+# --- CALLBACKS ---
 @bot.callback_query_handler(func=lambda call: True)
-def handle_calls(call):
+def handle_actions(call):
     cid = call.message.chat.id
     session = user_sessions.get(cid)
+    if not session or 'cpm' not in session:
+        return bot.answer_callback_query(call.id, "Session Expired!")
 
-    if call.data.startswith("approve_"):
-        new_u = int(call.data.split("_")[1])
-        ALLOWED_USERS.add(new_u)
-        bot.send_message(new_u, "🎉 അഡ്മിൻ നിങ്ങളെ അപ്രൂവ് ചെയ്തു! /start അടിക്കുക.")
-        bot.answer_callback_query(call.id, "User Approved!")
-        return
+    cpm = session['cpm']
+    
+    if call.data == "add_money":
+        if cpm._request("set_money", {"amount": 50000000}).get("ok"):
+            bot.send_message(cid, "✅ 50M Money Added!")
+        else:
+            bot.send_message(cid, "❌ Failed to add money.")
 
-    if not session or 'token' not in session: return
-    headers = {"Authorization": f"Bearer {session['token']}", "Content-Type": "application/json"}
-    ts = int(datetime.now().timestamp()*1000)
+    elif call.data == "add_coins":
+        if cpm._request("set_coins", {"amount": 45000}).get("ok"):
+            bot.send_message(cid, "✅ 45K Coins Added!")
+        else:
+            bot.send_message(cid, "❌ Failed.")
 
-    # King Rank
-    if call.data == "set_rank":
-        url = "https://us-central1-cp-multiplayer.cloudfunctions.net/SetUserRating4" if session['v']=="CPM1" else "https://us-central1-cpm-2-7cea1.cloudfunctions.net/SetUserRating17_AppI"
-        payload = {"data": json.dumps({"RatingData": {"race_win": 9999, "cars": 150}, "Timestamp": ts})}
-        requests.post(url, headers=headers, json=payload)
-        bot.send_message(cid, "👑 **King Rank Applied!**")
+    elif call.data == "unlock_all":
+        cpm._request("unlock_all_cars")
+        bot.send_message(cid, "✅ All Cars Unlocked!")
 
-    # Money & Coins
-    elif call.data == "set_money":
-        url = "https://us-central1-cp-multiplayer.cloudfunctions.net/SyncData"
-        payload = {"data": json.dumps({"money": 50000000, "coin": 45000, "localID": session['localid'], "Timestamp": ts})}
-        requests.post(url, headers=headers, json=payload)
-        bot.send_message(cid, "💰 **Money & Coins Added!**")
-
-    # Rainbow Name Prompt
-    elif call.data == "rainbow_prompt":
-        bot.send_message(cid, "🌈 Rainbow ആക്കേണ്ട പേര് അയക്കുക:")
-        bot.register_next_step_handler(call.message, apply_rainbow)
-
-    # House 3
-    elif call.data == "set_house":
-        url = "https://us-central1-cp-multiplayer.cloudfunctions.net/SyncData"
-        payload = {"data": json.dumps({"house3_bought": True, "localID": session['localid'], "Timestamp": ts})}
-        requests.post(url, headers=headers, json=payload)
-        bot.send_message(cid, "🏠 **House 3 Unlocked!**")
-
-    # Unlock Cars
-    elif call.data == "unlock_cars":
-        url = "https://us-central1-cp-multiplayer.cloudfunctions.net/SyncData"
-        payload = {"data": json.dumps({"all_cars_bought": True, "localID": session['localid'], "Timestamp": ts})}
-        requests.post(url, headers=headers, json=payload)
-        bot.send_message(cid, "🔓 **All Cars Unlocked!**")
-
-# Rainbow Name Implementation
-def apply_rainbow(message):
-    cid = message.chat.id
-    session = user_sessions.get(cid)
-    rainbow_name = get_rainbow_name(message.text)
-    url = "https://us-central1-cp-multiplayer.cloudfunctions.net/SyncData"
-    payload = {"data": json.dumps({"Name": rainbow_name, "localID": session['localid'], "Timestamp": int(datetime.now().timestamp()*1000)})}
-    headers = {"Authorization": f"Bearer {session['token']}", "Content-Type": "application/json"}
-    requests.post(url, headers=headers, json=payload)
-    bot.send_message(cid, f"✅ Rainbow Name Set: `{rainbow_name}`", parse_mode="Markdown")
-
-# --- START SERVER ---
+# --- RUN ---
 if __name__ == "__main__":
     Thread(target=run_flask).start()
     bot.infinity_polling()
