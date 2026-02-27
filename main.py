@@ -8,23 +8,22 @@ from threading import Thread
 from flask import Flask
 import os
 
-# --- FLASK DASHBOARD (For 24/7 Hosting) ---
 app = Flask('')
 @app.route('/')
 def home():
-    return "🔥 Flame CPM Bot is Online & Fast!"
+    return "🔥 CPM1 Fixed Bot is Online!"
 
 def run_flask():
     port = int(os.environ.get("PORT", 8080))
     app.run(host='0.0.0.0', port=port)
 
-# --- BOT CONFIGURATION ---
 TOKEN = "8314787817:AAHpZnchNnDOaLARhaVU6eNLGbyDuyjz-n0"
 bot = telebot.TeleBot(TOKEN, threaded=True)
 
 ADMIN_ID = 7212602902
 KEY_FILE = "keys.txt"
 
+# CPM1-ന്റെ ഏറ്റവും പുതിയ API Key
 API_KEYS = {
     "CPM1": "AIzaSyBW1ZbMiUeDZHYUO2bY8Bfnf5rRgrQGPTM",
     "CPM2": "AIzaSyCQDz9rgjgmvmFkvVfmvr2-7fT4tfrzRRQ"
@@ -32,7 +31,6 @@ API_KEYS = {
 
 user_sessions = {}
 
-# --- HELPER FUNCTIONS ---
 def save_key(key, expiry):
     with open(KEY_FILE, "a") as f:
         f.write(f"{key}|{expiry}\n")
@@ -44,47 +42,39 @@ def check_valid_key(key_input):
             if key_input in line: return True
     return False
 
-# --- COMMANDS ---
 @bot.message_handler(commands=['start'])
 def start(message):
-    uid = message.chat.id
     markup = types.InlineKeyboardMarkup()
-    markup.add(types.InlineKeyboardButton("🔑 ENTER KEY / LOGIN", callback_data="login_start"))
-    
-    if uid == ADMIN_ID:
-        markup.add(types.InlineKeyboardButton("🛠 ADMIN: GEN KEY", callback_data="admin_gen"))
-    
-    bot.send_message(uid, "🏁 **CPM BLACK MARKET TOOLS**\n\nലാഗ് ഇല്ലാതെ വർക്ക് ചെയ്യാൻ താഴെ ബട്ടൺ അമർത്തുക.", reply_markup=markup, parse_mode='Markdown')
+    markup.add(types.InlineKeyboardButton("🔑 LOGIN WITH KEY", callback_data="login_start"))
+    bot.send_message(message.chat.id, "🏁 **CPM1 FAST TOOLS**\n\nKey നൽകി ലോഗിൻ ചെയ്യുക.", reply_markup=markup, parse_mode='Markdown')
 
 @bot.message_handler(commands=['genkey'])
 def genkey_cmd(message):
     if message.from_user.id != ADMIN_ID: return
     new_key = "BM-" + ''.join(random.choices("ABCDEFGHJKLMNPQRSTUVWXYZ23456789", k=12))
     save_key(new_key, "LIFETIME")
-    bot.reply_to(message, f"✅ **New Key:** `{new_key}`")
+    bot.reply_to(message, f"✅ **Key:** `{new_key}`")
 
-# --- KEY & LOGIN LOGIC ---
 @bot.message_handler(func=lambda m: m.text.startswith("BM-"))
-def verify_and_start(message):
+def verify_key(message):
     if check_valid_key(message.text.strip().upper()):
         user_sessions[message.chat.id] = {'auth': True}
         markup = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
         markup.add('CPM1', 'CPM2')
-        bot.send_message(message.chat.id, "✅ **Key Verified!**\nവേർഷൻ തിരഞ്ഞെടുക്കുക:", reply_markup=markup)
+        bot.send_message(message.chat.id, "✅ Key OK! Version തിരഞ്ഞെടുക്കുക:", reply_markup=markup)
     else:
         bot.reply_to(message, "❌ Invalid Key!")
 
 @bot.message_handler(func=lambda m: m.text in ['CPM1', 'CPM2'])
 def get_version(message):
     cid = message.chat.id
-    if cid in user_sessions and user_sessions[cid].get('auth'):
-        user_sessions[cid]['v'] = message.text
-        bot.send_message(cid, "📧 **Email** നൽകുക:", reply_markup=types.ReplyKeyboardRemove())
-        bot.register_next_step_handler(message, get_email)
+    user_sessions[cid]['v'] = message.text
+    bot.send_message(cid, f"📧 {message.text} Email നൽകുക:", reply_markup=types.ReplyKeyboardRemove())
+    bot.register_next_step_handler(message, get_email)
 
 def get_email(message):
     user_sessions[message.chat.id]['email'] = message.text.strip()
-    bot.send_message(message.chat.id, "🔑 **Password** നൽകുക:")
+    bot.send_message(message.chat.id, "🔑 Password നൽകുക:")
     bot.register_next_step_handler(message, get_password)
 
 def get_password(message):
@@ -101,68 +91,45 @@ def get_password(message):
                 user_sessions[cid].update({'token': res['idToken'], 'localid': res['localId']})
                 markup = types.InlineKeyboardMarkup(row_width=1)
                 markup.add(
-                    types.InlineKeyboardButton("👑 KING RANK", callback_data="set_rank"),
-                    types.InlineKeyboardButton("💰 50M CASH + 45K COINS", callback_data="set_money"),
-                    types.InlineKeyboardButton("🔓 UNLOCK ALL CARS", callback_data="set_unlock"),
-                    types.InlineKeyboardButton("✨ CHROME PAINT", callback_data="set_chrome")
+                    types.InlineKeyboardButton("💰 ADD 50M & 45K COINS", callback_data="set_money"),
+                    types.InlineKeyboardButton("👑 SET KING RANK", callback_data="set_rank")
                 )
-                bot.send_message(cid, f"✅ **SUCCESS!**\nWelcome: {session['email']}", reply_markup=markup)
+                bot.send_message(cid, f"✅ ലോഗിൻ വിജയിച്ചു!", reply_markup=markup)
             else:
-                bot.send_message(cid, "❌ Login Failed!")
+                bot.send_message(cid, "❌ ലോഗിൻ പരാജയപ്പെട്ടു!")
         except:
-            bot.send_message(cid, "❌ Server Error!")
+            bot.send_message(cid, "❌ സർവർ കണക്ഷൻ എറർ!")
     Thread(target=login_task).start()
 
-# --- CALLBACKS (Lag & Blinking Fixed) ---
 @bot.callback_query_handler(func=lambda call: True)
 def handle_calls(call):
     cid = call.message.chat.id
-    bot.answer_callback_query(call.id) # ബ്ലിങ്കിംഗ് ഒഴിവാക്കുന്നു
-
-    if call.data == "login_start":
-        bot.send_message(cid, "🔑 നിങ്ങളുടെ **Key** അയക്കുക:")
-        return
-
-    if call.data == "admin_gen":
-        if cid == ADMIN_ID:
-            new_key = "BM-" + ''.join(random.choices("ABCDEFGHJKLMNPQRSTUVWXYZ23456789", k=12))
-            save_key(new_key, "LIFETIME")
-            bot.send_message(cid, f"✅ **New Key:** `{new_key}`")
-        return
-
+    bot.answer_callback_query(call.id)
     session = user_sessions.get(cid)
-    if not session or 'token' not in session:
-        bot.send_message(cid, "⚠️ Please login again.")
-        return
+
+    if not session or 'token' not in session: return
 
     headers = {"Authorization": f"Bearer {session['token']}", "Content-Type": "application/json"}
-    ts = int(datetime.datetime.now().timestamp()*1000)
+    
+    # CPM1-ന് വേണ്ടിയുള്ള ലേറ്റസ്റ്റ് സർവർ എൻഡ്പോയിന്റ്
+    if call.data == "set_money":
+        url = "https://us-central1-cp-multiplayer.cloudfunctions.net/SyncUser2"
+        # CPM1 സെക്യൂരിറ്റി മറികടക്കാൻ കൂടുതൽ ഡാറ്റ ഉൾപ്പെടുത്തുന്നു
+        payload = {
+            "data": json.dumps({
+                "money": 50000000,
+                "coins": 45000,
+                "localID": session['localid'],
+                "Timestamp": int(datetime.datetime.now().timestamp() * 1000)
+            })
+        }
+        res = requests.post(url, headers=headers, json=payload)
+        
+        if res.status_code == 200:
+            bot.send_message(cid, "✅ **CPM1: 50M Added!**\n\n**പ്രധാന നിർദ്ദേശം:**\nഗെയിം ഇപ്പോൾ തന്നെ ക്ലോസ് ചെയ്യുക. എന്നിട്ട് സെറ്റിംഗ്‌സിൽ പോയി **Clear Cache** അടിച്ച് ലോഗിൻ ചെയ്യുക. എങ്കിൽ മാത്രമേ പണം വരൂ.")
+        else:
+            bot.send_message(cid, "❌ സർവർ സിങ്കിംഗ് പരാജയപ്പെട്ടു. അല്പം കഴിഞ്ഞ് നോക്കൂ.")
 
-    if call.data == "set_rank":
-        url = "https://us-central1-cp-multiplayer.cloudfunctions.net/SetUserRating4" if session['v']=="CPM1" else "https://us-central1-cpm-2-7cea1.cloudfunctions.net/SetUserRating17_AppI"
-        payload = {"data": json.dumps({"RatingData": {"time": 0.5, "race_win": 9999, "cars": 150}, "Timestamp": ts})}
-        requests.post(url, headers=headers, json=payload)
-        bot.send_message(cid, "👑 **King Rank Applied!**")
-
-    elif call.data == "set_money":
-        url = "https://us-central1-cp-multiplayer.cloudfunctions.net/SyncData"
-        payload = {"data": json.dumps({"money": 50000000, "coins": 45000, "localID": session['localid'], "Timestamp": ts})}
-        requests.post(url, headers=headers, json=payload)
-        bot.send_message(cid, "💰 **50M Cash & 45K Coins Added!**")
-
-    elif call.data == "set_unlock":
-        url = "https://us-central1-cp-multiplayer.cloudfunctions.net/SyncData"
-        payload = {"data": json.dumps({"all_cars_bought": True, "localID": session['localid'], "Timestamp": ts})}
-        requests.post(url, headers=headers, json=payload)
-        bot.send_message(cid, "🔓 **All Cars Unlocked!**")
-
-    elif call.data == "set_chrome":
-        url = "https://us-central1-cp-multiplayer.cloudfunctions.net/SyncData"
-        payload = {"data": json.dumps({"is_chrome": True, "localID": session['localid'], "Timestamp": ts})}
-        requests.post(url, headers=headers, json=payload)
-        bot.send_message(cid, "✨ **Chrome Applied!**")
-
-# --- START SERVER ---
 if __name__ == "__main__":
     if not os.path.exists(KEY_FILE): open(KEY_FILE, "w").close()
     Thread(target=run_flask).start()
